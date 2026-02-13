@@ -1,9 +1,9 @@
-## ✨ Key Changes
+## Key Changes
 1.  **SeqTracker:** Intelligent TCP sequence tracking to prevent packet drops by firewalls.
 2.  **Port Pool:** Distributes traffic across thousands of ephemeral ports to mimic natural browser behavior.
 3.  **Rate Limiter:** Prevents burst traffic and DDoS detection triggers.
 
-## 🚀 Installation & Usage
+## Installation & Usage
 
 **Prerequisites:** Go 1.25+ and libpcap (Linux).
 
@@ -12,7 +12,7 @@ go mod tidy
 go build -o paqet.exe ./cmd/main.go
 ```
 
-## ⚙️ Quick Configuration (`config.yaml`)
+## Quick Configuration (`config.yaml`)
 
 Add these settings to the `network` section:
 
@@ -39,7 +39,7 @@ network:
     burst: 200
 ```
 
-## 🧪 Network Health Check
+## Network Health Check
 To ensure your datacenter isn't blocking you, run the following diagnostic script:
 
 ```bash
