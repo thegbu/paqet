@@ -13,6 +13,12 @@ import (
 
 type RecvHandle struct {
 	handle *pcap.Handle
+	eth    layers.Ethernet
+	ipv4   layers.IPv4
+	ipv6   layers.IPv6
+	tcp    layers.TCP
+	udp    layers.UDP
+	parser *gopacket.DecodingLayerParser
 }
 
 func NewRecvHandle(cfg *conf.Network) (*RecvHandle, error) {
@@ -28,12 +34,15 @@ func NewRecvHandle(cfg *conf.Network) (*RecvHandle, error) {
 		}
 	}
 
+	h := &RecvHandle{handle: handle}
+	h.parser = gopacket.NewDecodingLayerParser(layers.LayerTypeEthernet, &h.eth, &h.ipv4, &h.ipv6, &h.tcp, &h.udp)
+
 	filter := fmt.Sprintf("tcp and dst port %d", cfg.Port)
 	if err := handle.SetBPFFilter(filter); err != nil {
 		return nil, fmt.Errorf("failed to set BPF filter: %w", err)
 	}
 
-	return &RecvHandle{handle: handle}, nil
+	return h, nil
 }
 
 func (h *RecvHandle) Read() ([]byte, net.Addr, error) {
@@ -41,38 +50,44 @@ func (h *RecvHandle) Read() ([]byte, net.Addr, error) {
 	if err != nil {
 		return nil, nil, err
 	}
-	p := gopacket.NewPacket(data, layers.LayerTypeEthernet, gopacket.NoCopy)
+
+	decodedLayers := make([]gopacket.LayerType, 0, 4)
+	err = h.parser.DecodeLayers(data, &decodedLayers)
+	if err != nil {
+		return nil, nil, nil // Ignore malformed packets
+	}
 
 	addr := &net.UDPAddr{}
+	var payload []byte
 
-	netLayer := p.NetworkLayer()
-	if netLayer == nil {
-		return nil, nil, nil
-	}
-	switch netLayer.LayerType() {
-	case layers.LayerTypeIPv4:
-		addr.IP = netLayer.(*layers.IPv4).SrcIP
-	case layers.LayerTypeIPv6:
-		addr.IP = netLayer.(*layers.IPv6).SrcIP
-	}
-
-	trLayer := p.TransportLayer()
-	if trLayer == nil {
-		return nil, nil, nil
-	}
-	switch trLayer.LayerType() {
-	case layers.LayerTypeTCP:
-		addr.Port = int(trLayer.(*layers.TCP).SrcPort)
-	case layers.LayerTypeUDP:
-		addr.Port = int(trLayer.(*layers.UDP).SrcPort)
+	for _, layerType := range decodedLayers {
+		switch layerType {
+		case layers.LayerTypeIPv4:
+			addr.IP = h.ipv4.SrcIP
+		case layers.LayerTypeIPv6:
+			addr.IP = h.ipv6.SrcIP
+		case layers.LayerTypeTCP:
+			addr.Port = int(h.tcp.SrcPort)
+			payload = h.tcp.Payload
+		case layers.LayerTypeUDP:
+			addr.Port = int(h.udp.SrcPort)
+			payload = h.udp.Payload
+		}
 	}
 
-	appLayer := p.ApplicationLayer()
-	if appLayer == nil {
-		return nil, nil, nil
-	}
+	return payload, addr, nil
+}
 
-	return appLayer.Payload(), addr, nil
+func (h *RecvHandle) ReadTo(data []byte) (int, net.Addr, error) {
+	payload, addr, err := h.Read()
+	if err != nil {
+		return 0, nil, err
+	}
+	if payload == nil {
+		return 0, addr, nil
+	}
+	n := copy(data, payload)
+	return n, addr, nil
 }
 
 func (h *RecvHandle) Close() {

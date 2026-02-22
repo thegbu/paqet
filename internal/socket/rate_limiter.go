@@ -4,6 +4,8 @@ import (
 	"context"
 	"time"
 
+	"paqet/internal/flog"
+
 	"golang.org/x/time/rate"
 )
 
@@ -90,11 +92,16 @@ func (rl *RateLimiter) AdaptiveAdjust(packetLossPercent float64) {
 	
 	if packetLossPercent > 10.0 {
 		newRate := currentRate * 0.9
+		flog.Infof("High packet loss detected (%.2f%%), throttling rate limiter to %d pps", packetLossPercent, int(newRate))
 		rl.SetRate(int(newRate), currentBurst)
 	} else if packetLossPercent < 1.0 && currentRate < 10000 {
 		newRate := currentRate * 1.05
+		if int(newRate) != int(currentRate) {
+			flog.Infof("Stable connection (%.2f%% loss), increasing rate limiter to %d pps", packetLossPercent, int(newRate))
+		}
 		rl.SetRate(int(newRate), currentBurst)
 	}
+
 }
 
 

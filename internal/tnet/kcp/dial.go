@@ -26,5 +26,7 @@ func Dial(addr *net.UDPAddr, cfg *conf.KCP, pConn *socket.PacketConn) (tnet.Conn
 	}
 
 	flog.Debugf("smux session created successfully")
-	return &Conn{pConn, conn, sess}, nil
+	connObj := &Conn{pConn, conn, sess, make(chan struct{})}
+	connObj.StartAdaptiveRateControl()
+	return connObj, nil
 }

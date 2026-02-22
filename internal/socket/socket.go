@@ -67,13 +67,7 @@ func (c *PacketConn) ReadFrom(data []byte) (n int, addr net.Addr, err error) {
 	default:
 	}
 
-	payload, addr, err := c.recvHandle.Read()
-	if err != nil {
-		return 0, nil, err
-	}
-	n = copy(data, payload)
-
-	return n, addr, nil
+	return c.recvHandle.ReadTo(data)
 }
 
 func (c *PacketConn) WriteTo(data []byte, addr net.Addr) (n int, err error) {
@@ -151,3 +145,10 @@ func (c *PacketConn) SetDSCP(dscp int) error {
 func (c *PacketConn) SetClientTCPF(addr net.Addr, f []conf.TCPF) {
 	c.sendHandle.setClientTCPF(addr, f)
 }
+
+func (c *PacketConn) AdaptiveAdjust(lossPercent float64) {
+	if c.sendHandle != nil && c.sendHandle.rateLimiter != nil {
+		c.sendHandle.rateLimiter.AdaptiveAdjust(lossPercent)
+	}
+}
+

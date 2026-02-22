@@ -35,7 +35,9 @@ func (l *Listener) Accept() (tnet.Conn, error) {
 	if err != nil {
 		return nil, err
 	}
-	return &Conn{nil, conn, sess}, nil
+	connObj := &Conn{l.packetConn, conn, sess, make(chan struct{})}
+	connObj.StartAdaptiveRateControl()
+	return connObj, nil
 }
 
 func (l *Listener) Close() error {
